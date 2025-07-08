@@ -1,0 +1,250 @@
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<div class="graph-container">
+    <div class="slider-container">
+        <div id="slider-points" class="flex justify-between w-full"></div>
+        <div id="slider-circle" class="slider-circle"></div>
+    </div>
+
+    <div class="graph-wrapper">
+        <svg id="bar-chart">
+            <defs>
+                <linearGradient id="bar-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="rgba(255,255,255,0.3)" />
+                    <stop offset="100%" stop-color="rgba(0,0,0,0.1)" />
+                </linearGradient>
+            </defs>
+        </svg>
+    </div>
+    <div id="tooltip"></div>
+</div>
+
+<style>
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: transparent;
+}
+.graph-container {
+    background-color: #ffffff;
+    border-radius: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    padding: 1.5rem;
+    max-width: 90%;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+.graph-wrapper {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%;
+    overflow: hidden;
+}
+.graph-wrapper svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+@media (max-width: 768px) {
+    .graph-wrapper {
+        padding-bottom: 125%;
+    }
+}
+.slider-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    margin-bottom: 1.5rem;
+    position: relative;
+    background-color: #f0f0f0;
+    border-radius: 9999px;
+    padding: 0.5rem 1rem;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+    max-width: 300px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.year-point {
+    position: relative;
+    cursor: pointer;
+    text-align: center;
+    flex-grow: 1;
+    z-index: 10;
+    padding: 0.25rem 0.5rem;
+    transition: color 0.3s ease-in-out;
+    user-select: none;
+}
+.year-text {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #9ca3af;
+    transition: color 0.3s ease-in-out;
+}
+.year-text.active {
+    color: #ffffff;
+    font-weight: 700;
+}
+.slider-circle {
+    position: absolute;
+    width: 50px;
+    height: 35px;
+    background-color: #6a5acd;
+    border-radius: 9999px;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    transition: left 0.3s ease-in-out;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 5;
+}
+.bar { transition: fill 0.3s ease-in-out; filter: url(#bar-gradient); }
+.axis text { font-size: 0.8rem; fill: #6b7280; }
+.axis line, .axis path { stroke: #d1d5db; stroke-width: 1; }
+#tooltip {
+    position: absolute;
+    background-color: rgba(0,0,0,0.8);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    z-index: 100;
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+}
+</style>
+
+<script>
+// The entire JavaScript as provided
+const marketCapData = {
+    "2021": [ {company:"Nvidia",value:0.7,color:"#76B900"}, {company:"Microsoft",value:2.5,color:"#7B68EE"}, {company:"Apple",value:2.9,color:"#A2AAAD"}, {company:"Amazon",value:1.7,color:"#FF9900"}, {company:"Google",value:1.8,color:"#EA4335"}, {company:"Meta",value:0.9,color:"#1877F2"} ],
+    "2022": [ {company:"Nvidia",value:0.3,color:"#76B900"}, {company:"Microsoft",value:1.7,color:"#7B68EE"}, {company:"Apple",value:2.1,color:"#A2AAAD"}, {company:"Amazon",value:0.8,color:"#FF9900"}, {company:"Google",value:1.2,color:"#EA4335"}, {company:"Meta",value:0.3,color:"#1877F2"} ],
+    "2023": [ {company:"Nvidia",value:1.2,color:"#76B900"}, {company:"Microsoft",value:2.8,color:"#7B68EE"}, {company:"Apple",value:3.0,color:"#A2AAAD"}, {company:"Amazon",value:1.5,color:"#FF9900"}, {company:"Google",value:1.7,color:"#EA4335"}, {company:"Meta",value:0.8,color:"#1877F2"} ],
+    "2024": [ {company:"Nvidia",value:2.5,color:"#76B900"}, {company:"Microsoft",value:3.5,color:"#7B68EE"}, {company:"Apple",value:3.1,color:"#A2AAAD"}, {company:"Amazon",value:2.0,color:"#FF9900"}, {company:"Google",value:2.0,color:"#EA4335"}, {company:"Meta",value:1.2,color:"#1877F2"} ],
+    "2025": [ {company:"Nvidia",value:3.8,color:"#76B900"}, {company:"Microsoft",value:3.7,color:"#7B68EE"}, {company:"Apple",value:3.2,color:"#A2AAAD"}, {company:"Amazon",value:2.3,color:"#FF9900"}, {company:"Google",value:2.2,color:"#EA4335"}, {company:"Meta",value:1.3,color:"#1877F2"} ]
+};
+
+const years = Object.keys(marketCapData).sort();
+let currentYear = "2025";
+const margin = {top:30,right:20,bottom:60,left:60};
+let width,height;
+
+const svg = d3.select("#bar-chart");
+const g = svg.append("g").attr("transform",`translate(${margin.left},${margin.top})`);
+const xScale = d3.scaleBand().padding(0.3);
+const yScale = d3.scaleLinear().range([0,0]);
+const xAxis = g.append("g").attr("class","x axis");
+const yAxis = g.append("g").attr("class","y axis");
+
+const yAxisLabel = g.append("text")
+    .attr("class","y axis-label")
+    .attr("transform","rotate(-90)")
+    .style("text-anchor","middle")
+    .text("Market Cap (Trillions USD)");
+
+function updateGraphDimensions() {
+    const container = d3.select(".graph-wrapper").node();
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    width = containerWidth - margin.left - margin.right;
+    height = containerHeight - margin.top - margin.bottom;
+
+    svg.attr("width",containerWidth).attr("height",containerHeight);
+    xScale.range([0,width]);
+    yScale.range([height,0]);
+    xAxis.attr("transform",`translate(0,${height})`);
+    yScale.domain([0,4]);
+    yAxisLabel.attr("y",-margin.left+15).attr("x",-(height/2));
+    drawGraph(marketCapData[currentYear]);
+}
+
+function drawGraph(data) {
+    xScale.domain(data.map(d=>d.company));
+    xAxis.call(d3.axisBottom(xScale));
+    yAxis.call(d3.axisLeft(yScale).ticks(5).tickFormat(d=>`${d}T`));
+
+    const tooltip = d3.select("#tooltip");
+    const bars = g.selectAll(".bar").data(data,d=>d.company);
+
+    bars.enter()
+        .append("rect")
+        .attr("class","bar")
+        .attr("x",d=>xScale(d.company))
+        .attr("y",height)
+        .attr("width",xScale.bandwidth())
+        .attr("height",0)
+        .attr("fill",d=>d.color)
+        .on("mouseover", function(event,d){
+            const barBBox = this.getBoundingClientRect();
+            const graphBBox = d3.select(".graph-container").node().getBoundingClientRect();
+            const tooltipX = barBBox.left+barBBox.width/2-graphBBox.left;
+            const tooltipY = barBBox.top-graphBBox.top-15;
+            tooltip.html(`<strong>${d.company}</strong><br>${d.value}T`)
+                .style("left",`${tooltipX}px`)
+                .style("top",`${tooltipY}px`)
+                .style("opacity",1);
+        })
+        .on("mouseout",()=>tooltip.style("opacity",0))
+        .transition().duration(750).ease(d3.easeCubicOut)
+        .attr("y",d=>yScale(d.value))
+        .attr("height",d=>height-yScale(d.value));
+
+    bars.transition().duration(750).ease(d3.easeCubicOut)
+        .attr("x",d=>xScale(d.company))
+        .attr("y",d=>yScale(d.value))
+        .attr("width",xScale.bandwidth())
+        .attr("height",d=>height-yScale(d.value))
+        .attr("fill",d=>d.color);
+
+    bars.exit().transition().duration(500)
+        .attr("y",height).attr("height",0).remove();
+}
+
+function setupSlider() {
+    const container = d3.select("#slider-points");
+    const circle = d3.select("#slider-circle");
+
+    years.forEach(year=>{
+        const point = container.append("div")
+            .attr("class","year-point")
+            .attr("data-year",year);
+        point.append("span").attr("class","year-text").text(year);
+        point.on("click",()=>{
+            currentYear=year;
+            updateSlider();
+            drawGraph(marketCapData[currentYear]);
+        });
+    });
+
+    function updateSlider(){
+        const active = d3.select(`.year-point[data-year="${currentYear}"]`).node();
+        d3.selectAll(".year-text").classed("active",false);
+        d3.select(active).select(".year-text").classed("active",true);
+
+        const points = d3.selectAll(".year-point").nodes();
+        const i = years.indexOf(currentYear);
+        if(points[i]){
+            const w=points[i].offsetWidth,l=points[i].offsetLeft;
+            circle.style("left",`${l+(w/2)}px`);
+        }
+    }
+    updateSlider();
+}
+
+window.addEventListener('resize', updateGraphDimensions);
+window.addEventListener('load', ()=>{
+    updateGraphDimensions();
+    setupSlider();
+});
+</script>
